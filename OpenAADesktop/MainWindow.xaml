@@ -1,0 +1,23 @@
+<Window x:Class="OpenAADesktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OpenAA Desktop"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        AllowsTransparency="False"
+        Background="Black">
+    <Grid>
+        <Image x:Name="BgImage" Stretch="UniformToFill" />
+        <TextBlock x:Name="BrandText"
+                   Text="OpenAA.com"
+                   Foreground="White"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Top"
+                   TextOptions.TextRenderingMode="ClearType">
+            <TextBlock.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.35" BlurRadius="6" ShadowDepth="1.5" />
+            </TextBlock.Effect>
+        </TextBlock>
+    </Grid>
+</Window>
