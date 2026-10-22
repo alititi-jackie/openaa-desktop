@@ -6,6 +6,7 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         AllowsTransparency="False"
+        Visibility="Hidden"
         Background="Black">
     <Grid>
         <Image x:Name="BgImage" Stretch="UniformToFill" />

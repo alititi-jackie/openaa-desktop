@@ -34,6 +34,9 @@ public static class DesktopLayer
     public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr GetParent(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -82,23 +85,26 @@ public static class DesktopLayer
 
         // Ask Explorer to spawn a WorkerW behind the desktop icons (undocumented but
         // long-stable message 0x052C, used by all major live-wallpaper apps).
-        SendMessageTimeout(progman, 0x052C, IntPtr.Zero, IntPtr.Zero, 0, 1000, out _);
+        // Both documented parameter variants are sent, as established apps do.
+        SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, IntPtr.Zero, 0, 1000, out _);
+        SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, (IntPtr)1, 0, 1000, out _);
 
+        // The wallpaper host is the top-level WorkerW that comes AFTER the window
+        // holding SHELLDLL_DefView (the desktop icons). Never fall back to an
+        // arbitrary WorkerW: parenting into the icons' own layer (or failing to
+        // parent at all) puts the wallpaper ABOVE the icons and covers them.
         IntPtr workerW = IntPtr.Zero;
         EnumWindows((top, _) =>
         {
             IntPtr defView = FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null);
             if (defView != IntPtr.Zero)
             {
-                // The WorkerW *after* the one containing DefView is the wallpaper host.
-                workerW = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
+                IntPtr next = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
+                if (next != IntPtr.Zero) workerW = next;
+                return false; // DefView exists exactly once; stop enumerating.
             }
             return true;
         }, IntPtr.Zero);
-
-        // Fallback: some shells expose the wallpaper WorkerW directly.
-        if (workerW == IntPtr.Zero)
-            workerW = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "WorkerW", null);
 
         return workerW;
     }
@@ -125,10 +131,11 @@ public static class DesktopLayer
         var rect = PrimaryMonitorRect();
         // Coordinates are relative to the WorkerW, which spans the virtual screen
         // starting at (0,0) of the primary monitor in the standard layout.
-        SetWindowPos(hwnd, IntPtr.Zero, rect.Left, rect.Top,
+        // HWND_BOTTOM (1): stay at the bottom of the host even inside the layer.
+        SetWindowPos(hwnd, (IntPtr)1, rect.Left, rect.Top,
             rect.Right - rect.Left, rect.Bottom - rect.Top,
             SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        return true;
+        return GetParent(hwnd) == workerW;
     }
 
     /// <summary>Physical-pixel bounds of the primary monitor.</summary>

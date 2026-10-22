@@ -135,8 +135,6 @@ public partial class MainWindow : Window
         var source = HwndSource.FromHwnd(_hwnd);
         source?.AddHook(WndProc);
 
-        AttachAndLayout();
-
         LoadWallpaper();
         ApplyFont();
 
@@ -145,12 +143,32 @@ public partial class MainWindow : Window
         _hook.Start();
 
         StartWatchdog();
+
+        // The WorkerW wallpaper layer can take a moment to spawn after the
+        // 0x052C request; retry briefly. Until attached, the window stays
+        // hidden so it can NEVER float above the desktop icons.
+        _ = AttachWithRetryAsync();
     }
 
-    private void AttachAndLayout()
+    private async Task AttachWithRetryAsync()
     {
-        if (_hwnd == IntPtr.Zero) return;
-        DesktopLayer.Attach(_hwnd);
+        for (int i = 0; i < 10 && !_destroyed; i++)
+        {
+            if (AttachAndLayout()) return;
+            await Task.Delay(700);
+        }
+    }
+
+    /// <summary>Returns true when the window is parented into the wallpaper layer.</summary>
+    private bool AttachAndLayout()
+    {
+        if (_hwnd == IntPtr.Zero) return false;
+        if (!DesktopLayer.Attach(_hwnd))
+        {
+            Visibility = Visibility.Hidden;
+            return false;
+        }
+        Visibility = Visibility.Visible;
 
         var mon = DesktopLayer.PrimaryMonitorRect();
         var dpi = VisualTreeHelper.GetDpi(this);
@@ -164,6 +182,7 @@ public partial class MainWindow : Window
         BrandText.FontSize = Math.Max(14, hDip * 0.048);
         BrandText.Margin = new Thickness(0, hDip * 0.13, wDip * 0.04, 0);
         UpdateBrandRect();
+        return true;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
