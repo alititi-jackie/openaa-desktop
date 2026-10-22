@@ -6,6 +6,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 
+using FontFamily = System.Windows.Media.FontFamily;
+using Point = System.Windows.Point;
+
 namespace OpenAADesktop;
 
 public partial class MainWindow : Window

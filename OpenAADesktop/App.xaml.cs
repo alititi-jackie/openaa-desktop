@@ -3,7 +3,7 @@ using System.Windows;
 
 namespace OpenAADesktop;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private Mutex? _mutex;
     private Settings _settings = new();

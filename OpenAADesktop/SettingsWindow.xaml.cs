@@ -78,7 +78,7 @@ public partial class SettingsWindow : Window
         catch { }
     }
 
-    private void OnExit(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
+    private void OnExit(object sender, RoutedEventArgs e) => System.Windows.Application.Current.Shutdown();
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 }

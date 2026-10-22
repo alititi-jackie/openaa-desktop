@@ -137,6 +137,13 @@ public sealed class TrayManager : IDisposable
             if (File.Exists(path)) return new Drawing.Icon(path);
         }
         catch { }
+        try
+        {
+            // Single-file build: the icon is embedded in the exe itself.
+            var exeIcon = Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
+            if (exeIcon != null) return exeIcon;
+        }
+        catch { }
         return Drawing.SystemIcons.Application;
     }
 
