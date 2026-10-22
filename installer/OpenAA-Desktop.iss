@@ -17,7 +17,7 @@ DefaultGroupName=OpenAA Desktop
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputBaseFilename=OpenAA-Desktop-Setup
-OutputDir=..\..\dist
+OutputDir=..\dist
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："; Flags: unchecked
 
 [Files]
-Source: "..\..\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\OpenAA Desktop"; Filename: "{app}\{#MyAppExeName}"
