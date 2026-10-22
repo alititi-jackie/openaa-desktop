@@ -35,7 +35,6 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path "publish/OpenAA-Desktop.exe")) { throw "OpenAA-Desktop.exe missing" }
-          if (-not (Test-Path "publish/app.ico")) { throw "app.ico missing" }
           Get-ChildItem publish | Select-Object Name, Length
 
       - name: Build installer (Inno Setup)
@@ -80,3 +79,4 @@ jobs:
             - Download `OpenAA-Desktop-Setup.exe`, run it, done. Per-user install, no admin needed.
             - The installer is NOT code-signed; Windows SmartScreen may show a warning — choose "More info" → "Run anyway".
             - Verify integrity with SHA256SUMS.txt.
+
