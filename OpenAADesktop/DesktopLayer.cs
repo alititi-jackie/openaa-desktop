@@ -25,6 +25,9 @@ public static class DesktopLayer
     [DllImport("user32.dll")]
     private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -77,45 +80,71 @@ public static class DesktopLayer
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint MONITOR_DEFAULTTOPRIMARY = 1;
 
-    /// <summary>Finds (spawning if needed) the WorkerW that hosts the wallpaper layer.</summary>
-    public static IntPtr FindWallpaperWorkerW()
+    /// <summary>
+    /// Enumerates the desktop's top-level shell windows, asks Explorer to spawn
+    /// the wallpaper WorkerW (0x052C), then returns every plausible wallpaper
+    /// host in preference order: WorkerW siblings without SHELLDLL_DefView
+    /// (the icons live in DefView, so the wallpaper host must not contain it),
+    /// preferring the one right after the DefView host in z-order.
+    /// Every step is logged to %AppData%\OpenAADesktop\debug.log: the exact
+    /// shell layout differs between Windows builds, and the log is the only
+    /// reliable way to see a given machine's tree.
+    /// </summary>
+    public static List<IntPtr> FindWallpaperCandidates()
     {
         IntPtr progman = FindWindow("Progman", null);
-        if (progman == IntPtr.Zero) return IntPtr.Zero;
+        if (progman == IntPtr.Zero)
+        {
+            Log.Write("FindWallpaperCandidates: Progman not found");
+            return new List<IntPtr>();
+        }
 
-        // Ask Explorer to spawn a WorkerW behind the desktop icons (undocumented but
-        // long-stable message 0x052C, used by all major live-wallpaper apps).
-        // Both documented parameter variants are sent, as established apps do.
         SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, IntPtr.Zero, 0, 1000, out _);
         SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, (IntPtr)1, 0, 1000, out _);
 
-        // The wallpaper host is the top-level WorkerW that comes AFTER the window
-        // holding SHELLDLL_DefView (the desktop icons). Never fall back to an
-        // arbitrary WorkerW: parenting into the icons' own layer (or failing to
-        // parent at all) puts the wallpaper ABOVE the icons and covers them.
-        IntPtr workerW = IntPtr.Zero;
+        var topLevel = new List<(IntPtr Hwnd, string Class, bool HasDefView)>();
         EnumWindows((top, _) =>
         {
-            IntPtr defView = FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null);
-            if (defView != IntPtr.Zero)
-            {
-                IntPtr next = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
-                if (next != IntPtr.Zero) workerW = next;
-                return false; // DefView exists exactly once; stop enumerating.
-            }
+            var buf = new System.Text.StringBuilder(64);
+            GetClassName(top, buf, buf.Capacity);
+            string cls = buf.ToString();
+            bool hasDef = FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero;
+            topLevel.Add((top, cls, hasDef));
             return true;
         }, IntPtr.Zero);
 
-        return workerW;
+        foreach (var (h, cls, hasDef) in topLevel)
+            if (cls is "WorkerW" or "Progman" || hasDef)
+                Log.Write($"  top-level 0x{h.ToInt64():X} {cls} defView={hasDef}");
+
+        int defIdx = topLevel.FindIndex(t => t.HasDefView);
+        var candidates = new List<IntPtr>();
+        // Preferred: first WorkerW after the DefView host.
+        if (defIdx >= 0)
+            for (int i = defIdx + 1; i < topLevel.Count; i++)
+                if (topLevel[i].Class == "WorkerW") { candidates.Add(topLevel[i].Hwnd); break; }
+        // Then every other WorkerW that does not host the icons, in z-order.
+        foreach (var (h, cls, hasDef) in topLevel)
+            if (cls == "WorkerW" && !hasDef && !candidates.Contains(h))
+                candidates.Add(h);
+
+        Log.Write($"FindWallpaperCandidates: defViewHostIndex={defIdx}, candidates=[{string.Join(", ", candidates.ConvertAll(c => "0x" + c.ToInt64().ToString("X")))}]");
+        return candidates;
+    }
+
+    /// <summary>Convenience: the most preferred wallpaper host, or Zero.</summary>
+    public static IntPtr FindWallpaperWorkerW()
+    {
+        var list = FindWallpaperCandidates();
+        return list.Count > 0 ? list[0] : IntPtr.Zero;
     }
 
     /// <summary>
-    /// Parents <paramref name="hwnd"/> to the wallpaper WorkerW and sizes it to the
-    /// primary monitor. Returns false if the layer could not be found.
+    /// Parents <paramref name="hwnd"/> to the given wallpaper host and sizes it
+    /// to the primary monitor. Returns false if parenting did not stick.
     /// </summary>
-    public static bool Attach(IntPtr hwnd)
+    public static bool Attach(IntPtr hwnd, IntPtr workerW)
     {
-        IntPtr workerW = FindWallpaperWorkerW();
         if (workerW == IntPtr.Zero) return false;
 
         int style = GetWindowLong(hwnd, GWL_STYLE);
@@ -135,7 +164,24 @@ public static class DesktopLayer
         SetWindowPos(hwnd, (IntPtr)1, rect.Left, rect.Top,
             rect.Right - rect.Left, rect.Bottom - rect.Top,
             SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        return GetParent(hwnd) == workerW;
+        bool ok = GetParent(hwnd) == workerW;
+        Log.Write($"Attach: parent=0x{workerW.ToInt64():X} ok={ok}");
+        return ok;
+    }
+
+    /// <summary>
+    /// Tries every wallpaper-host candidate in preference order. Even when a
+    /// candidate accepts the parenting, only the FIRST is kept: which one is
+    /// actually visible depends on the shell, so the attempt order in
+    /// FindWallpaperCandidates encodes the known-good layouts first.
+    /// </summary>
+    public static bool AttachToFirstCandidate(IntPtr hwnd)
+    {
+        foreach (var candidate in FindWallpaperCandidates())
+            if (Attach(hwnd, candidate))
+                return true;
+        Log.Write("AttachToFirstCandidate: no candidate accepted");
+        return false;
     }
 
     /// <summary>Physical-pixel bounds of the primary monitor.</summary>

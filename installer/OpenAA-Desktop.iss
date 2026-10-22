@@ -3,7 +3,7 @@
 ; standard uninstall entry in Windows Settings > Apps.
 
 #define MyAppName "OpenAA Desktop"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "OpenAA"
 #define MyAppExeName "OpenAA-Desktop.exe"
 

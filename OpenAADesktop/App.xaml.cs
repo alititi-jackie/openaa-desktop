@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
         DispatcherUnhandledException += (_, args) => { args.Handled = true; };
 
         _settings = Settings.Load();
+        Log.Write($"=== App start (v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}) ===");
 
         // Keep the recorded autostart flag honest with the registry.
         _settings.AutoStart = AutoStart.IsEnabled();

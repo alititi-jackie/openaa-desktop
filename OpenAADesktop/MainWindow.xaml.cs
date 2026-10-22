@@ -154,16 +154,21 @@ public partial class MainWindow : Window
     {
         for (int i = 0; i < 10 && !_destroyed; i++)
         {
-            if (AttachAndLayout()) return;
+            if (AttachAndLayout())
+            {
+                Log.Write($"AttachWithRetry: attached on attempt {i + 1}");
+                return;
+            }
             await Task.Delay(700);
         }
+        Log.Write("AttachWithRetry: all attempts failed, staying hidden (watchdog keeps retrying)");
     }
 
     /// <summary>Returns true when the window is parented into the wallpaper layer.</summary>
     private bool AttachAndLayout()
     {
         if (_hwnd == IntPtr.Zero) return false;
-        if (!DesktopLayer.Attach(_hwnd))
+        if (!DesktopLayer.AttachToFirstCandidate(_hwnd))
         {
             Visibility = Visibility.Hidden;
             return false;
@@ -242,11 +247,15 @@ public partial class MainWindow : Window
         _watchdog.Tick += (_, _) =>
         {
             if (_destroyed || _hwnd == IntPtr.Zero) return;
-            // If our parent is no longer a WorkerW, Explorer rebuilt the desktop.
+            // If we lost our parent (Explorer rebuilt the desktop but this
+            // window survived), re-attach. A live WorkerW parent means we are
+            // in a wallpaper layer; which candidate it is does not matter.
             IntPtr parent = GetParent(_hwnd);
-            IntPtr expected = DesktopLayer.FindWallpaperWorkerW();
-            if (expected != IntPtr.Zero && parent != expected)
+            if (parent == IntPtr.Zero)
+            {
+                Log.Write("Watchdog: no parent, re-attaching");
                 AttachAndLayout();
+            }
         };
         _watchdog.Start();
     }
