@@ -1,0 +1,82 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decode binary assets (stored as base64 text in the repo)
+        shell: pwsh
+        run: |
+          $assetDir = "OpenAADesktop/Assets"
+          $b64 = (Get-ChildItem "$assetDir/wallpaper.b64.part*" | Sort-Object Name | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          [IO.File]::WriteAllBytes("$assetDir/wallpaper.jpg", [Convert]::FromBase64String($b64))
+          $icoB64 = Get-Content "$assetDir/app.ico.b64" -Raw
+          [IO.File]::WriteAllBytes("$assetDir/app.ico", [Convert]::FromBase64String($icoB64))
+          Get-ChildItem $assetDir | Select-Object Name, Length
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build & publish (self-contained, single file, win-x64)
+        run: dotnet publish OpenAADesktop/OpenAADesktop.csproj -c Release -o publish
+
+      - name: Verify publish output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "publish/OpenAA-Desktop.exe")) { throw "OpenAA-Desktop.exe missing" }
+          if (-not (Test-Path "publish/app.ico")) { throw "app.ico missing" }
+          Get-ChildItem publish | Select-Object Name, Length
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = (Get-Command iscc -ErrorAction Stop).Source }
+          & $iscc "installer\OpenAA-Desktop.iss"
+          if (-not (Test-Path "dist/OpenAA-Desktop-Setup.exe")) { throw "Installer missing" }
+          Get-ChildItem dist | Select-Object Name, Length
+
+      - name: SHA256 checksums
+        shell: pwsh
+        run: |
+          Get-FileHash dist/OpenAA-Desktop-Setup.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  OpenAA-Desktop-Setup.exe" } |
+            Out-File -Encoding ascii dist/SHA256SUMS.txt
+          Get-FileHash publish/OpenAA-Desktop.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  OpenAA-Desktop.exe" } |
+            Out-File -Encoding ascii -Append dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenAA-Desktop-v1.0.0
+          path: |
+            dist/OpenAA-Desktop-Setup.exe
+            dist/SHA256SUMS.txt
+            publish/OpenAA-Desktop.exe
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/OpenAA-Desktop-Setup.exe
+            dist/SHA256SUMS.txt
+          body: |
+            OpenAA Desktop for Windows 11 (x64).
+
+            - Download `OpenAA-Desktop-Setup.exe`, run it, done. Per-user install, no admin needed.
+            - The installer is NOT code-signed; Windows SmartScreen may show a warning — choose "More info" → "Run anyway".
+            - Verify integrity with SHA256SUMS.txt.
