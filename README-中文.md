@@ -51,6 +51,8 @@ GitHub Actions（`.github/workflows/build.yml`）在 `windows-latest` 上自动�
 - [x] Inno Setup 安装包生成成功
 - [x] 安装包与程序的 SHA-256 校验值已生成
 
+> 验证记录：2026-10-21，GitHub Actions 运行 #39701977019（windows-latest，.NET 8，Inno Setup 6.7.1）全部步骤成功；产物 `OpenAA-Desktop-v1.0.0`（含 OpenAA-Desktop-Setup.exe、OpenAA-Desktop.exe、SHA256SUMS.txt）。
+
 **以下项目需要在真实 Windows 11 机器上人工验证**（构建环境无法代替真机桌面测试，欢迎反馈结果）：
 - [ ] 安装包在干净 Windows 11 上的安装 / 升级 / 卸载
 - [ ] 壁纸显示效果（1920×1080 / 2560×1440 / 3840×2160；100% / 125% / 150% / 200% 缩放）
