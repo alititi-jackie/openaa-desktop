@@ -49,11 +49,10 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 OpenAA Desktop"; Flags: nowait postinstall skipifsilent
 
-[UninstallRun]
-; (nothing to run: the app holds no services or drivers)
-
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
   begin
