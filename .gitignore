@@ -1,0 +1,13 @@
+# Build output
+bin/
+obj/
+publish/
+dist/
+
+# Generated from base64 parts during build (see README)
+OpenAADesktop/Assets/wallpaper.jpg
+OpenAADesktop/Assets/app.ico
+
+# Misc
+*.user
+.vs/
